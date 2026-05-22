@@ -1966,19 +1966,21 @@ async def main():
                         target=goal
                     )
                     
-                    # 导出报告
+                    # 导出报告（统一后缀: markdown->.md）
                     report_format = VULN_REPORT_FORMAT
                     if report_format not in ("markdown", "json", "html"):
                         report_format = "markdown"
-                    report_path = os.path.join(log_dir, f"vulnerability_report.{report_format}")
-                    
+                    ext_map = {"markdown": "md", "json": "json", "html": "html"}
+                    report_ext = ext_map.get(report_format, report_format)
+                    report_path = os.path.join(log_dir, f"vulnerability_report.{report_ext}")
+
                     if report_format == "json":
                         generator.export_json(report, report_path)
                     elif report_format == "html":
                         generator.export_html(report, report_path)
                     else:
                         generator.export_markdown(report, report_path)
-                    
+
                     console.print(Panel(
                         f"漏洞报告已保存: {report_path}\n"
                         f"共发现 {len(report.vulnerabilities)} 个有效漏洞\n"
@@ -1986,6 +1988,38 @@ async def main():
                         title="[bold green]漏洞报告[/bold green]",
                         style="green"
                     ))
+
+                    # 新增：推送完整漏洞报告到钉钉
+                    try:
+                        from conf.config import DINGTALK_ENABLED, DINGTALK_WEBHOOK, DINGTALK_SECRET
+                        if DINGTALK_ENABLED and DINGTALK_WEBHOOK and DINGTALK_SECRET:
+                            from core.dingtalk_notifier import DingTalkNotifier
+                            notifier = DingTalkNotifier(
+                                webhook_url=DINGTALK_WEBHOOK,
+                                secret=DINGTALK_SECRET
+                            )
+                            # 读取报告内容推送
+                            if os.path.exists(report_path):
+                                with open(report_path, "r", encoding="utf-8") as f:
+                                    report_content = f.read()
+                                # 构建报告摘要消息
+                                vuln_count = len(report.vulnerabilities)
+                                summary = (
+                                    f"# 🎯 渗透测试漏洞报告\n\n"
+                                    f"**任务**: {task_name}\n"
+                                    f"**目标**: {goal}\n"
+                                    f"**漏洞总数**: {vuln_count} 个\n"
+                                    f"**已过滤无效类型**: {len(report.invalid_vulns_filtered)} 个\n\n"
+                                    f"---\n\n"
+                                    f"{report_content[:8000]}"
+                                )
+                                # 钉钉消息上限约20000字，截断处理
+                                if len(summary) > 18000:
+                                    summary = summary[:18000] + "\n\n...（内容过长，已截断，完整报告请查看Artifact）"
+                                await notifier.send_text_alert(summary)
+                                console.print("[bold green][DingTalk] 完整漏洞报告已推送[/bold green]")
+                    except Exception as e:
+                        console.print(f"[yellow][DingTalk] 报告推送失败: {e}[/yellow]")
         except Exception as e:
             console.print(f"[yellow]漏洞报告生成失败: {e}[/yellow]")
 
