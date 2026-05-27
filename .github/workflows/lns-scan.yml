@@ -46,7 +46,7 @@ env:
 
   # === LLM 配置 ===
   LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-  LLM_FALLBACK_API_KEY: ${{ secrets.LLM_FALLBACK_API_KEY }}
+  LLM_API_BASE_URL: $({ secrets.LLM_API_BASE_URL }}
 
 jobs:
   prepare:
@@ -209,7 +209,7 @@ jobs:
           echo "========================================"
 
           python agent.py \
-            --goal "对 ${TARGET} 进行全面的 Web 安全测试，发现漏洞后立即停止" \
+            --goal "对 ${TARGET} 进行全面的 Web 安全测试" \
             --task-name "${SAFE_NAME}" || true
 
       - name: Collect Vulnerability Report
